@@ -41,12 +41,12 @@ uv run pytest tests/ -v
 
 ```
 output/
-├── markdown/    # {date}_{slug}_{8-char-id}.md files
+├── markdown/    # {slug}_{8-char-id}.md files
 └── raw/         # {16-char-id}.html and .txt files
 
 newsletters/     # Generated output
 ├── Ryan Holiday/
-│   ├── 2026-02-22_some-email_19c869d8.md
+│   ├── some-email_19c869d8.md
 │   ├── 19c869d898acab8c.html
 │   └── 19c869d898acab8c.txt
 └── uncategorized/

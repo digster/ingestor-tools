@@ -117,13 +117,13 @@ class TestFilterLabels:
 class TestExtractTruncatedId:
     def test_standard_filename(self):
         assert extract_truncated_id(
-            "2026-02-22_some-slug_19c869d8.md"
+            "some-slug_19c869d8.md"
         ) == "19c869d8"
 
     def test_slug_with_underscores(self):
         # rsplit with maxsplit=1 ensures only the last _ is split
         assert extract_truncated_id(
-            "2026-02-22_a_long_slug_here_abcd1234.md"
+            "a_long_slug_here_abcd1234.md"
         ) == "abcd1234"
 
     def test_no_underscore_fallback(self):
@@ -201,7 +201,7 @@ class TestOrganizeIntegration:
         stop_list.write_text("INBOX\nUNREAD\nSPAM\nCATEGORY_PERSONAL\n")
 
         # Email 1: single meaningful label
-        (md_dir / "2026-02-22_test-email_aabb1122.md").write_text(textwrap.dedent("""\
+        (md_dir / "test-email_aabb1122.md").write_text(textwrap.dedent("""\
             ---
             subject: "Test Email"
             labels: ["INBOX", "UNREAD", "Ryan Holiday"]
@@ -212,7 +212,7 @@ class TestOrganizeIntegration:
         (raw_dir / "aabb112233445566.txt").write_text("email1 text")
 
         # Email 2: multiple meaningful labels
-        (md_dir / "2026-02-22_multi-label_ccdd3344.md").write_text(textwrap.dedent("""\
+        (md_dir / "multi-label_ccdd3344.md").write_text(textwrap.dedent("""\
             ---
             subject: "Multi Label"
             labels: ["INBOX", "Tech Weekly", "AI News"]
@@ -222,7 +222,7 @@ class TestOrganizeIntegration:
         (raw_dir / "ccdd334455667788.html").write_text("<html>email2</html>")
 
         # Email 3: no meaningful labels → uncategorized
-        (md_dir / "2026-02-22_no-label_eeff5566.md").write_text(textwrap.dedent("""\
+        (md_dir / "no-label_eeff5566.md").write_text(textwrap.dedent("""\
             ---
             subject: "No Label"
             labels: ["INBOX", "SPAM"]
@@ -238,7 +238,7 @@ class TestOrganizeIntegration:
 
         rh_dir = newsletters_dir / "Ryan Holiday"
         assert rh_dir.exists()
-        assert (rh_dir / "2026-02-22_test-email_aabb1122.md").exists()
+        assert (rh_dir / "test-email_aabb1122.md").exists()
         assert (rh_dir / "aabb112233445566.html").exists()
         assert (rh_dir / "aabb112233445566.txt").exists()
 
@@ -250,7 +250,7 @@ class TestOrganizeIntegration:
         for label in ("Tech Weekly", "AI News"):
             label_dir = newsletters_dir / label
             assert label_dir.exists(), f"Missing folder: {label}"
-            assert (label_dir / "2026-02-22_multi-label_ccdd3344.md").exists()
+            assert (label_dir / "multi-label_ccdd3344.md").exists()
             assert (label_dir / "ccdd334455667788.html").exists()
 
     def test_uncategorized(self, tmp_path):
@@ -259,7 +259,7 @@ class TestOrganizeIntegration:
 
         uncat = newsletters_dir / "uncategorized"
         assert uncat.exists()
-        assert (uncat / "2026-02-22_no-label_eeff5566.md").exists()
+        assert (uncat / "no-label_eeff5566.md").exists()
 
     def test_idempotent_rerun(self, tmp_path):
         """Running organize twice should skip already-copied files."""
@@ -269,7 +269,7 @@ class TestOrganizeIntegration:
         organize(output_dir, newsletters_dir, stop_list)
 
         rh_dir = newsletters_dir / "Ryan Holiday"
-        assert (rh_dir / "2026-02-22_test-email_aabb1122.md").exists()
+        assert (rh_dir / "test-email_aabb1122.md").exists()
 
     def test_missing_raw_files(self, tmp_path):
         """MD file with no matching raw files should still be copied."""
@@ -278,4 +278,4 @@ class TestOrganizeIntegration:
 
         # Email 3 has no raw files → still in uncategorized
         uncat = newsletters_dir / "uncategorized"
-        assert (uncat / "2026-02-22_no-label_eeff5566.md").exists()
+        assert (uncat / "no-label_eeff5566.md").exists()

@@ -10,7 +10,7 @@ Implement the following plan:
 The `output/` folder contains ingested emails in markdown (with frontmatter metadata) and raw (html/txt) formats. We need a Python tool that reads each email's labels, filters out system/generic labels using a stop-list, and copies the email files into label-named folders under `../newsletters/`. This organizes emails by their meaningful newsletter source label.
 
 ## File Mapping
-- MD files: `output/markdown/{date}_{slug}_{id}.md` — ID is a **truncated prefix** (8 hex chars)
+- MD files: `output/markdown/{slug}_{id}.md` — ID is a **truncated prefix** (8 hex chars)
 - Raw files: `output/raw/{full_id}.html` and `output/raw/{full_id}.txt` — full ID (16 hex chars)
 - Mapping: find raw files whose name **starts with** the truncated ID from the MD filename
 

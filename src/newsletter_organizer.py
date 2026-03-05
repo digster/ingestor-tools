@@ -82,8 +82,8 @@ def extract_truncated_id(md_filename: str) -> str:
     """
     Extract the 8-char hex ID suffix from an MD filename.
 
-    Expected format: {date}_{slug}_{id}.md
-    Example: '2026-02-22_some-slug_19c869d8.md' → '19c869d8'
+    Expected format: {slug}_{id}.md
+    Example: 'some-slug_19c869d8.md' → '19c869d8'
     """
     stem = Path(md_filename).stem  # drop .md
     parts = stem.rsplit("_", maxsplit=1)
