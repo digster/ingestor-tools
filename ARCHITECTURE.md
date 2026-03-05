@@ -7,13 +7,14 @@ The Newsletter Organizer is a single-script Python tool that reads ingested emai
 ## Data Flow
 
 ```
-output/markdown/*.md  ──→  parse frontmatter  ──→  filter labels  ──→  newsletters/{label}/
-output/raw/*.html|txt  ──→  match by ID prefix ─────────────────────→  newsletters/{label}/
+output/markdown/*.md  ──→  parse frontmatter  ──→  filter labels  ──→  newsletters/{label}/{id}/
+output/raw/*.html|txt  ──→  match by ID prefix ─────────────────────→  newsletters/{label}/{id}/
 ```
 
 ## Key Design Decisions
 
 - **ID Mapping**: MD filenames contain an 8-char hex ID prefix; raw files use the full 16-char ID. Matching uses `startswith()` on the raw filename stem.
+- **ID Subfolder Grouping**: Each email's files (MD + raw HTML/TXT) are grouped into a subfolder named by the 8-char truncated ID, keeping related files bundled together.
 - **Multi-label Fan-out**: Emails with multiple meaningful labels are copied to ALL matching folders (trades disk space for discoverability).
 - **Idempotent**: Files already present in the destination are skipped, making reruns safe.
 - **Stop-list Driven**: Label filtering uses an external text file (`label-stop-list.txt`) so it can be updated without code changes.

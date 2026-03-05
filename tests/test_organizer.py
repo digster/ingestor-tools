@@ -236,7 +236,7 @@ class TestOrganizeIntegration:
         output_dir, newsletters_dir, stop_list = self._setup_fixture(tmp_path)
         organize(output_dir, newsletters_dir, stop_list)
 
-        rh_dir = newsletters_dir / "Ryan Holiday"
+        rh_dir = newsletters_dir / "Ryan Holiday" / "aabb1122"
         assert rh_dir.exists()
         assert (rh_dir / "test-email_aabb1122.md").exists()
         assert (rh_dir / "aabb112233445566.html").exists()
@@ -246,18 +246,18 @@ class TestOrganizeIntegration:
         output_dir, newsletters_dir, stop_list = self._setup_fixture(tmp_path)
         organize(output_dir, newsletters_dir, stop_list)
 
-        # Should exist in both label folders
+        # Should exist in both label folders, grouped under ID subfolder
         for label in ("Tech Weekly", "AI News"):
-            label_dir = newsletters_dir / label
-            assert label_dir.exists(), f"Missing folder: {label}"
-            assert (label_dir / "multi-label_ccdd3344.md").exists()
-            assert (label_dir / "ccdd334455667788.html").exists()
+            id_dir = newsletters_dir / label / "ccdd3344"
+            assert id_dir.exists(), f"Missing folder: {label}/ccdd3344"
+            assert (id_dir / "multi-label_ccdd3344.md").exists()
+            assert (id_dir / "ccdd334455667788.html").exists()
 
     def test_uncategorized(self, tmp_path):
         output_dir, newsletters_dir, stop_list = self._setup_fixture(tmp_path)
         organize(output_dir, newsletters_dir, stop_list)
 
-        uncat = newsletters_dir / "uncategorized"
+        uncat = newsletters_dir / "uncategorized" / "eeff5566"
         assert uncat.exists()
         assert (uncat / "no-label_eeff5566.md").exists()
 
@@ -268,7 +268,7 @@ class TestOrganizeIntegration:
         # Run again — should not raise or duplicate
         organize(output_dir, newsletters_dir, stop_list)
 
-        rh_dir = newsletters_dir / "Ryan Holiday"
+        rh_dir = newsletters_dir / "Ryan Holiday" / "aabb1122"
         assert (rh_dir / "test-email_aabb1122.md").exists()
 
     def test_missing_raw_files(self, tmp_path):
@@ -276,6 +276,21 @@ class TestOrganizeIntegration:
         output_dir, newsletters_dir, stop_list = self._setup_fixture(tmp_path)
         organize(output_dir, newsletters_dir, stop_list)
 
-        # Email 3 has no raw files → still in uncategorized
-        uncat = newsletters_dir / "uncategorized"
+        # Email 3 has no raw files → still in uncategorized, under ID subfolder
+        uncat = newsletters_dir / "uncategorized" / "eeff5566"
         assert (uncat / "no-label_eeff5566.md").exists()
+
+    def test_id_subfolder_structure(self, tmp_path):
+        """Label folders should only contain ID subdirectories, no loose files."""
+        output_dir, newsletters_dir, stop_list = self._setup_fixture(tmp_path)
+        organize(output_dir, newsletters_dir, stop_list)
+
+        rh_label_dir = newsletters_dir / "Ryan Holiday"
+        assert rh_label_dir.exists()
+        # Every child of the label folder should be a directory (the ID subfolder)
+        for child in rh_label_dir.iterdir():
+            assert child.is_dir(), f"Expected only subdirectories in label folder, found file: {child.name}"
+        # The ID subfolder should contain the actual files
+        id_dir = rh_label_dir / "aabb1122"
+        assert id_dir.exists()
+        assert any(id_dir.iterdir()), "ID subfolder should contain files"

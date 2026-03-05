@@ -46,3 +46,16 @@ The `output/` folder contains ingested emails in markdown (with frontmatter meta
 - Unit tests for: frontmatter parsing, label filtering, ID extraction, file mapping
 - Integration test with temp directories mimicking the output structure
 - Run against actual `output/` data to verify end-to-end
+
+## 2026-03-04 — Filename Convention Update
+
+Update MD filename references from {date}_{slug}_{id} to {slug}_{id} format.
+
+## 2026-03-04 — Group Email Files into Per-ID Subfolders
+
+Group each email's files (MD, HTML, TXT) into a subfolder named by the email's 8-char truncated ID within each label folder.
+
+**Before:** `newsletters/Ryan Holiday/some-email_19c869d8.md`
+**After:** `newsletters/Ryan Holiday/19c869d8/some-email_19c869d8.md`
+
+Changes: `src/newsletter_organizer.py` (dest_dir path), `tests/test_organizer.py` (5 test updates + 1 new test), `ARCHITECTURE.md`, `README.md`.

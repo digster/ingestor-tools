@@ -180,15 +180,15 @@ def organize(
         if not raw_files:
             logging.warning("  No raw files found for ID prefix '%s'", truncated_id)
 
-        # --- Copy to each label folder ---
+        # --- Copy to each label folder, grouped by truncated ID ---
         files_to_copy = [md_path] + raw_files
         for label in meaningful_labels:
-            dest_dir = newsletters_dir / label
+            dest_dir = newsletters_dir / label / truncated_id
             dest_dir.mkdir(parents=True, exist_ok=True)
 
             for src_file in files_to_copy:
                 status = copy_file_if_new(src_file, dest_dir)
-                logging.info("  → %s/%s [%s]", label, src_file.name, status)
+                logging.info("  → %s/%s/%s [%s]", label, truncated_id, src_file.name, status)
 
     # --- Summary ---
     logging.info("=" * 60)
