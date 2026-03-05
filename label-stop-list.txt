@@ -17,3 +17,5 @@ Newsletters
 Tech Newsletters
 Cerebral
 crypto
+Howstuffworks
+jobs
