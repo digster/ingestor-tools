@@ -59,3 +59,13 @@ Group each email's files (MD, HTML, TXT) into a subfolder named by the email's 8
 **After:** `newsletters/Ryan Holiday/19c869d8/some-email_19c869d8.md`
 
 Changes: `src/newsletter_organizer.py` (dest_dir path), `tests/test_organizer.py` (5 test updates + 1 new test), `ARCHITECTURE.md`, `README.md`.
+
+## 2026-08-29 — Rebuild `../newsletters` for Full Message IDs
+
+Upstream `gmail-ingestor` now writes `{slug}_{full_16_char_message_id}.md` and an
+`id:` front-matter field. Rebuild `../newsletters` (fresh directory + diff before
+swapping, since `organize()` only copies), then rebuild `../newsletters-web`.
+
+Cleanups: rename `extract_truncated_id` -> `extract_message_id`; replace
+`find_raw_files()`'s glob-and-scan with a direct `raw_dir / f"{id}.html"`
+existence check; add a regression test for two `.html` files sharing a prefix.

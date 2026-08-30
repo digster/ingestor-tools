@@ -7,7 +7,7 @@ import pytest
 
 from src.newsletter_organizer import (
     copy_file_if_new,
-    extract_truncated_id,
+    extract_message_id,
     filter_labels,
     find_raw_files,
     load_stop_list,
@@ -111,24 +111,30 @@ class TestFilterLabels:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: extract_truncated_id
+# Unit tests: extract_message_id
 # ---------------------------------------------------------------------------
 
-class TestExtractTruncatedId:
+class TestExtractMessageId:
     def test_standard_filename(self):
-        assert extract_truncated_id(
-            "some-slug_19c869d8.md"
-        ) == "19c869d8"
+        assert extract_message_id(
+            "some-slug_19c869d898acab8c.md"
+        ) == "19c869d898acab8c"
 
     def test_slug_with_underscores(self):
         # rsplit with maxsplit=1 ensures only the last _ is split
-        assert extract_truncated_id(
-            "a_long_slug_here_abcd1234.md"
-        ) == "abcd1234"
+        assert extract_message_id(
+            "a_long_slug_here_abcd12345678ef90.md"
+        ) == "abcd12345678ef90"
 
     def test_no_underscore_fallback(self):
-        result = extract_truncated_id("weirdname.md")
+        result = extract_message_id("weirdname.md")
         assert result == "weirdname"
+
+    def test_returns_full_id_not_a_prefix(self):
+        """Regression: filenames carry the full 16-char ID, never a truncation."""
+        assert extract_message_id(
+            "tuesday-assorted-links_1953e3bed494d90c.md"
+        ) == "1953e3bed494d90c"
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +147,7 @@ class TestFindRawFiles:
         (tmp_path / "19c869d898acab8c.txt").touch()
         (tmp_path / "aaaa000011112222.html").touch()  # unrelated
 
-        result = find_raw_files("19c869d8", tmp_path)
+        result = find_raw_files("19c869d898acab8c", tmp_path)
         names = [p.name for p in result]
         assert "19c869d898acab8c.html" in names
         assert "19c869d898acab8c.txt" in names
@@ -149,7 +155,50 @@ class TestFindRawFiles:
 
     def test_no_matches(self, tmp_path):
         (tmp_path / "aaaa000011112222.html").touch()
-        assert find_raw_files("bbbb0000", tmp_path) == []
+        assert find_raw_files("bbbb000000000000", tmp_path) == []
+
+    def test_ids_sharing_a_prefix_do_not_bleed(self, tmp_path):
+        """Regression for the 8-char-prefix collision.
+
+        Two real Gmail IDs delivered minutes apart share their first 8 chars.
+        The old prefix scan returned both emails' bodies for either lookup,
+        which is how one newsletter's body was published under another's
+        headline. The lookup must now be exact.
+        """
+        (tmp_path / "1953e3be34f4d721.html").touch()
+        (tmp_path / "1953e3be34f4d721.txt").touch()
+        (tmp_path / "1953e3bed494d90c.html").touch()
+        (tmp_path / "1953e3bed494d90c.txt").touch()
+
+        first = [p.name for p in find_raw_files("1953e3be34f4d721", tmp_path)]
+        second = [p.name for p in find_raw_files("1953e3bed494d90c", tmp_path)]
+
+        assert first == ["1953e3be34f4d721.html", "1953e3be34f4d721.txt"]
+        assert second == ["1953e3bed494d90c.html", "1953e3bed494d90c.txt"]
+
+    def test_shared_prefix_alone_matches_nothing(self, tmp_path):
+        """The common 8-char prefix is not itself a valid ID any more."""
+        (tmp_path / "1953e3be34f4d721.html").touch()
+        (tmp_path / "1953e3bed494d90c.html").touch()
+        assert find_raw_files("1953e3be", tmp_path) == []
+
+    def test_html_sorts_before_txt(self, tmp_path):
+        (tmp_path / "aabb112233445566.txt").touch()
+        (tmp_path / "aabb112233445566.html").touch()
+        result = find_raw_files("aabb112233445566", tmp_path)
+        assert [p.suffix for p in result] == [".html", ".txt"]
+
+    def test_rejects_path_traversal(self, tmp_path):
+        """A malformed stem must not be able to address files outside raw_dir."""
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret.html").touch()
+        raw_dir = tmp_path / "raw"
+        raw_dir.mkdir()
+
+        assert find_raw_files("../outside/secret", raw_dir) == []
+        assert find_raw_files("", raw_dir) == []
+        assert find_raw_files("..", raw_dir) == []
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +250,7 @@ class TestOrganizeIntegration:
         stop_list.write_text("INBOX\nUNREAD\nSPAM\nCATEGORY_PERSONAL\n")
 
         # Email 1: single meaningful label
-        (md_dir / "test-email_aabb1122.md").write_text(textwrap.dedent("""\
+        (md_dir / "test-email_aabb112233445566.md").write_text(textwrap.dedent("""\
             ---
             subject: "Test Email"
             labels: ["INBOX", "UNREAD", "Ryan Holiday"]
@@ -212,7 +261,7 @@ class TestOrganizeIntegration:
         (raw_dir / "aabb112233445566.txt").write_text("email1 text")
 
         # Email 2: multiple meaningful labels
-        (md_dir / "multi-label_ccdd3344.md").write_text(textwrap.dedent("""\
+        (md_dir / "multi-label_ccdd334455667788.md").write_text(textwrap.dedent("""\
             ---
             subject: "Multi Label"
             labels: ["INBOX", "Tech Weekly", "AI News"]
@@ -222,7 +271,7 @@ class TestOrganizeIntegration:
         (raw_dir / "ccdd334455667788.html").write_text("<html>email2</html>")
 
         # Email 3: no meaningful labels → uncategorized
-        (md_dir / "no-label_eeff5566.md").write_text(textwrap.dedent("""\
+        (md_dir / "no-label_eeff556677889900.md").write_text(textwrap.dedent("""\
             ---
             subject: "No Label"
             labels: ["INBOX", "SPAM"]
@@ -236,9 +285,9 @@ class TestOrganizeIntegration:
         output_dir, newsletters_dir, stop_list = self._setup_fixture(tmp_path)
         organize(output_dir, newsletters_dir, stop_list)
 
-        rh_dir = newsletters_dir / "Ryan Holiday" / "aabb1122"
+        rh_dir = newsletters_dir / "Ryan Holiday" / "aabb112233445566"
         assert rh_dir.exists()
-        assert (rh_dir / "test-email_aabb1122.md").exists()
+        assert (rh_dir / "test-email_aabb112233445566.md").exists()
         assert (rh_dir / "aabb112233445566.html").exists()
         assert (rh_dir / "aabb112233445566.txt").exists()
 
@@ -248,18 +297,18 @@ class TestOrganizeIntegration:
 
         # Should exist in both label folders, grouped under ID subfolder
         for label in ("Tech Weekly", "AI News"):
-            id_dir = newsletters_dir / label / "ccdd3344"
-            assert id_dir.exists(), f"Missing folder: {label}/ccdd3344"
-            assert (id_dir / "multi-label_ccdd3344.md").exists()
+            id_dir = newsletters_dir / label / "ccdd334455667788"
+            assert id_dir.exists(), f"Missing folder: {label}/ccdd334455667788"
+            assert (id_dir / "multi-label_ccdd334455667788.md").exists()
             assert (id_dir / "ccdd334455667788.html").exists()
 
     def test_uncategorized(self, tmp_path):
         output_dir, newsletters_dir, stop_list = self._setup_fixture(tmp_path)
         organize(output_dir, newsletters_dir, stop_list)
 
-        uncat = newsletters_dir / "uncategorized" / "eeff5566"
+        uncat = newsletters_dir / "uncategorized" / "eeff556677889900"
         assert uncat.exists()
-        assert (uncat / "no-label_eeff5566.md").exists()
+        assert (uncat / "no-label_eeff556677889900.md").exists()
 
     def test_idempotent_rerun(self, tmp_path):
         """Running organize twice should skip already-copied files."""
@@ -268,8 +317,8 @@ class TestOrganizeIntegration:
         # Run again — should not raise or duplicate
         organize(output_dir, newsletters_dir, stop_list)
 
-        rh_dir = newsletters_dir / "Ryan Holiday" / "aabb1122"
-        assert (rh_dir / "test-email_aabb1122.md").exists()
+        rh_dir = newsletters_dir / "Ryan Holiday" / "aabb112233445566"
+        assert (rh_dir / "test-email_aabb112233445566.md").exists()
 
     def test_missing_raw_files(self, tmp_path):
         """MD file with no matching raw files should still be copied."""
@@ -277,8 +326,76 @@ class TestOrganizeIntegration:
         organize(output_dir, newsletters_dir, stop_list)
 
         # Email 3 has no raw files → still in uncategorized, under ID subfolder
-        uncat = newsletters_dir / "uncategorized" / "eeff5566"
-        assert (uncat / "no-label_eeff5566.md").exists()
+        uncat = newsletters_dir / "uncategorized" / "eeff556677889900"
+        assert (uncat / "no-label_eeff556677889900.md").exists()
+
+    def test_prefix_colliding_emails_split_into_separate_dirs(self, tmp_path):
+        """End-to-end regression for the 8-char collision.
+
+        Mirrors the real 'Tyler Cowen/1953e3be' case: two emails delivered
+        minutes apart under the same label, whose IDs share 8 chars. Each must
+        get its own directory holding only its own body — previously they shared
+        one directory containing both bodies, and the site published the wrong
+        one.
+        """
+        output_dir = tmp_path / "output"
+        md_dir = output_dir / "markdown"
+        raw_dir = output_dir / "raw"
+        newsletters_dir = tmp_path / "newsletters"
+        md_dir.mkdir(parents=True)
+        raw_dir.mkdir(parents=True)
+        stop_list = tmp_path / "stop.txt"
+        stop_list.write_text("INBOX\n")
+
+        for mid, slug, body in (
+            ("1953e3be34f4d721", "its-happening", "first"),
+            ("1953e3bed494d90c", "tuesday-assorted-links", "second"),
+        ):
+            (md_dir / f"{slug}_{mid}.md").write_text(textwrap.dedent(f"""\
+                ---
+                id: "{mid}"
+                subject: "{slug}"
+                labels: ["INBOX", "Tyler Cowen"]
+                ---
+                Body {body}.
+            """))
+            (raw_dir / f"{mid}.html").write_text(f"<html>{body}</html>")
+            (raw_dir / f"{mid}.txt").write_text(body)
+
+        organize(output_dir, newsletters_dir, stop_list)
+
+        label_dir = newsletters_dir / "Tyler Cowen"
+        assert sorted(d.name for d in label_dir.iterdir()) == [
+            "1953e3be34f4d721",
+            "1953e3bed494d90c",
+        ]
+
+        # Each directory holds exactly its own three files — no bleed.
+        first = label_dir / "1953e3be34f4d721"
+        assert sorted(f.name for f in first.iterdir()) == [
+            "1953e3be34f4d721.html",
+            "1953e3be34f4d721.txt",
+            "its-happening_1953e3be34f4d721.md",
+        ]
+        assert (first / "1953e3be34f4d721.html").read_text() == "<html>first</html>"
+
+        second = label_dir / "1953e3bed494d90c"
+        assert sorted(f.name for f in second.iterdir()) == [
+            "1953e3bed494d90c.html",
+            "1953e3bed494d90c.txt",
+            "tuesday-assorted-links_1953e3bed494d90c.md",
+        ]
+        assert (second / "1953e3bed494d90c.html").read_text() == "<html>second</html>"
+
+    def test_each_dir_holds_exactly_one_markdown(self, tmp_path):
+        """Every output directory must describe exactly one email."""
+        output_dir, newsletters_dir, stop_list = self._setup_fixture(tmp_path)
+        organize(output_dir, newsletters_dir, stop_list)
+
+        for id_dir in newsletters_dir.glob("*/*"):
+            if id_dir.is_dir():
+                md_files = list(id_dir.glob("*.md"))
+                assert len(md_files) == 1, f"{id_dir} holds {len(md_files)} .md files"
 
     def test_id_subfolder_structure(self, tmp_path):
         """Label folders should only contain ID subdirectories, no loose files."""
@@ -291,6 +408,6 @@ class TestOrganizeIntegration:
         for child in rh_label_dir.iterdir():
             assert child.is_dir(), f"Expected only subdirectories in label folder, found file: {child.name}"
         # The ID subfolder should contain the actual files
-        id_dir = rh_label_dir / "aabb1122"
+        id_dir = rh_label_dir / "aabb112233445566"
         assert id_dir.exists()
         assert any(id_dir.iterdir()), "ID subfolder should contain files"

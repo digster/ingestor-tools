@@ -6,7 +6,7 @@ Organizes ingested emails from the `output/` directory into label-named folders 
 
 1. Reads all `.md` files from `output/markdown/` (each has YAML frontmatter with labels)
 2. Filters out system/generic labels using `label-stop-list.txt`
-3. Copies each email's MD + raw HTML/TXT files into `newsletters/{label}/{id}/` subfolders (grouped by 8-char ID)
+3. Copies each email's MD + raw HTML/TXT files into `newsletters/{label}/{message_id}/` subfolders (grouped by full 16-char Gmail message ID)
 4. Emails with no meaningful labels go to `newsletters/uncategorized/`
 5. Emails with multiple labels are copied to all matching folders
 
@@ -41,19 +41,24 @@ uv run pytest tests/ -v
 
 ```
 output/
-├── markdown/    # {slug}_{8-char-id}.md files
-└── raw/         # {16-char-id}.html and .txt files
+├── markdown/    # {slug}_{message_id}.md files
+└── raw/         # {message_id}.html and .txt files
 
 newsletters/     # Generated output
 ├── Ryan Holiday/
-│   └── 19c869d8/                # 8-char ID subfolder
-│       ├── some-email_19c869d8.md
+│   └── 19c869d898acab8c/                # full message-ID subfolder
+│       ├── some-email_19c869d898acab8c.md
 │       ├── 19c869d898acab8c.html
 │       └── 19c869d898acab8c.txt
 └── uncategorized/
-    └── aabbccdd/
-        └── no-label_aabbccdd.md
+    └── aabbccdd11223344/
+        └── no-label_aabbccdd11223344.md
 ```
+
+Directory names are the **full 16-char Gmail message ID**. They used to be an
+8-char truncation, which collided (see `LEARNINGS.md`) and merged unrelated
+emails into one folder. Raw bodies are now located by exact filename rather than
+a prefix scan, so one directory always describes exactly one email.
 
 ## Stop-list
 

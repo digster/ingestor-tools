@@ -4,9 +4,7 @@ using a stop-list, and copies email files into label-named folders under
 ../newsletters/ for easy browsing by newsletter source.
 """
 
-import glob
 import logging
-import os
 import shutil
 import sys
 from datetime import datetime
@@ -78,12 +76,19 @@ def filter_labels(labels: list[str], stop_list: set[str]) -> list[str]:
     return [label for label in labels if label not in stop_list]
 
 
-def extract_truncated_id(md_filename: str) -> str:
+def extract_message_id(md_filename: str) -> str:
     """
-    Extract the 8-char hex ID suffix from an MD filename.
+    Extract the Gmail message ID suffix from an MD filename.
 
-    Expected format: {slug}_{id}.md
-    Example: 'some-slug_19c869d8.md' → '19c869d8'
+    Expected format: {slug}_{message_id}.md
+    Example: 'some-slug_19c869d898acab8c.md' → '19c869d898acab8c'
+
+    The upstream ingestor previously truncated the ID to 8 chars. Because Gmail
+    message IDs are time-ordered rather than hashed, those prefixes collided for
+    emails delivered close together, which merged unrelated newsletters into a
+    single directory. Filenames now carry the full 16-char ID; this function is
+    unchanged in behaviour (it returns whatever follows the last underscore) and
+    simply yields the full ID as a result.
     """
     stem = Path(md_filename).stem  # drop .md
     parts = stem.rsplit("_", maxsplit=1)
@@ -92,15 +97,34 @@ def extract_truncated_id(md_filename: str) -> str:
     return parts[-1]
 
 
-def find_raw_files(truncated_id: str, raw_dir: Path) -> list[Path]:
+def find_raw_files(message_id: str, raw_dir: Path) -> list[Path]:
     """
-    Find raw (.html/.txt) files whose name starts with the truncated ID.
+    Locate the raw (.html/.txt) bodies belonging to `message_id`.
+
+    Raw files are named exactly `{message_id}.{ext}`, so this is a direct
+    existence check on two candidate paths.
+
+    This replaced a glob-and-prefix-scan of the whole raw directory, which was
+    O(raw files) for every markdown file — roughly 544M path comparisons across
+    the live corpus. More importantly, while IDs were truncated the prefix match
+    was not merely slow but *wrong*: it also matched other emails whose IDs
+    happened to share the prefix, copying their bodies into the wrong folder.
+
+    Sorted so the returned order (.html before .txt) is stable regardless of the
+    probe order above.
     """
+    # Guard against a malformed stem escaping raw_dir. The scan this replaced
+    # could only ever return files inside raw_dir; building a path from the ID
+    # would not, so the invariant is restored explicitly.
+    if not message_id or "/" in message_id or "\\" in message_id or message_id in (".", ".."):
+        logging.warning("Refusing to look up raw files for suspicious ID %r", message_id)
+        return []
+
     matches = []
-    for ext in ("*.html", "*.txt"):
-        for path in raw_dir.glob(ext):
-            if path.stem.startswith(truncated_id):
-                matches.append(path)
+    for ext in (".html", ".txt"):
+        candidate = raw_dir / f"{message_id}{ext}"
+        if candidate.exists():
+            matches.append(candidate)
     return sorted(matches)
 
 
@@ -175,20 +199,20 @@ def organize(
             )
 
         # --- Find matching raw files ---
-        truncated_id = extract_truncated_id(md_path.name)
-        raw_files = find_raw_files(truncated_id, raw_dir) if raw_dir.exists() else []
+        message_id = extract_message_id(md_path.name)
+        raw_files = find_raw_files(message_id, raw_dir) if raw_dir.exists() else []
         if not raw_files:
-            logging.warning("  No raw files found for ID prefix '%s'", truncated_id)
+            logging.warning("  No raw files found for ID '%s'", message_id)
 
-        # --- Copy to each label folder, grouped by truncated ID ---
+        # --- Copy to each label folder, grouped by message ID ---
         files_to_copy = [md_path] + raw_files
         for label in meaningful_labels:
-            dest_dir = newsletters_dir / label / truncated_id
+            dest_dir = newsletters_dir / label / message_id
             dest_dir.mkdir(parents=True, exist_ok=True)
 
             for src_file in files_to_copy:
                 status = copy_file_if_new(src_file, dest_dir)
-                logging.info("  → %s/%s/%s [%s]", label, truncated_id, src_file.name, status)
+                logging.info("  → %s/%s/%s [%s]", label, message_id, src_file.name, status)
 
     # --- Summary ---
     logging.info("=" * 60)
