@@ -62,6 +62,19 @@ The lookup is now exact, which is both correct and dramatically cheaper: the old
 scan was O(raw files) per markdown file — roughly 544M path comparisons over the
 live corpus. A full rebuild of ~17k emails takes about 20 seconds.
 
+### Backfilled articles use `web-` IDs
+
+Not every directory name is a Gmail message ID. `ingestor-tui`'s backfill feature writes
+articles scraped from a publication's web archive, identified by
+`web-<sha256(canonical_url)[:16]>` instead — for example `web-4d77605a905cdfc5`. Their
+markdown carries `origin: backfill` and `source_url:` in its front matter.
+
+Nothing here needs to treat them specially: the ID is still whatever follows the last
+underscore in the markdown filename, still safe as a path segment, and still matches
+`{id}.html` exactly. Backfilled articles have no `.txt` body, which the two-candidate
+existence check already handles. The one thing to know is that a `web-` prefix means the
+article was never an email, so no Gmail-side lookup will ever find it.
+
 ### Rebuilding `../newsletters`
 
 `organize()` only ever **copies** — it never deletes. Running it into an existing
